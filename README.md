@@ -389,3 +389,21 @@ If the doctor script reports an unhealthy engine, the usual host recovery sequen
 3. open Docker Desktop again
 4. rerun `.\scripts\docker-doctor.ps1`
 5. then continue with `.\scripts\up.ps1`
+
+## Vercel with local Docker backend
+
+For a one-command local backend exposed to the Vercel frontends, run:
+
+```powershell
+.\scripts\start-vercel-local.ps1
+```
+
+The script starts Docker Compose, opens a Cloudflare quick tunnel, updates `NEXT_PUBLIC_API_URL` in both Vercel projects, and redeploys `petwell-public` and `petwell-admin`.
+
+Keep the PC on while using the Vercel URLs. Cloudflare quick tunnel URLs are temporary; run the script again after restarting the PC.
+
+To stop the local stack without deleting database volumes:
+
+```powershell
+.\scripts\stop-local-stack.ps1
+```
