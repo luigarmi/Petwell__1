@@ -83,6 +83,25 @@ function Start-CloudflareTunnel {
   throw "Could not find the trycloudflare.com tunnel URL in cloudflared logs."
 }
 
+function Start-WorkingCloudflareTunnel {
+  for ($attempt = 1; $attempt -le 5; $attempt++) {
+    $tunnelUrl = Start-CloudflareTunnel
+    $apiUrl = "$tunnelUrl/api"
+
+    try {
+      Write-Host "[petwell] Testing tunnel attempt $attempt`: $tunnelUrl"
+      Wait-For-Api "$apiUrl/health/ready"
+      return $tunnelUrl
+    } catch {
+      Write-Host "[petwell] Tunnel attempt $attempt failed: $($_.Exception.Message)"
+      Get-Process cloudflared -ErrorAction SilentlyContinue | Stop-Process -Force
+      Start-Sleep -Seconds 3
+    }
+  }
+
+  throw "Could not start a working Cloudflare quick tunnel after 5 attempts."
+}
+
 function Set-VercelApiUrl {
   param(
     [string] $ProjectPath,
@@ -129,12 +148,10 @@ try {
   Write-Host "[petwell] Waiting for local API..."
   Wait-For-Api "http://localhost/api/health/ready"
 
-  $tunnelUrl = Start-CloudflareTunnel
+  $tunnelUrl = Start-WorkingCloudflareTunnel
   $apiUrl = "$tunnelUrl/api"
 
   Write-Host "[petwell] Tunnel URL: $tunnelUrl"
-  Write-Host "[petwell] Waiting for tunneled API..."
-  Wait-For-Api "$apiUrl/health/ready"
 
   Set-VercelApiUrl $publicProjectPath $apiUrl
   Set-VercelApiUrl $adminProjectPath $apiUrl
