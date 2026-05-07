@@ -14,24 +14,34 @@ export type AuthSession = {
   };
 };
 
-function parseApiErrorMessage(responseText: string, status: number) {
-  if (!responseText) {
-    return `Request failed with status ${status}`;
+function normalizeErrorMessage(status: number, payload: unknown, fallbackText: string) {
+  if (payload && typeof payload === 'object' && 'message' in payload) {
+    const message = (payload as { message?: unknown }).message;
+    if (Array.isArray(message)) {
+      return message.join(', ');
+    }
+    if (typeof message === 'string' && message.trim()) {
+      return message;
+    }
   }
 
-  try {
-    const parsed = JSON.parse(responseText) as { message?: string | string[] };
-    if (Array.isArray(parsed.message)) {
-      return parsed.message.join(', ');
-    }
-    if (typeof parsed.message === 'string' && parsed.message.trim()) {
-      return parsed.message;
-    }
-  } catch {
-    return responseText;
+  if (fallbackText && !fallbackText.trim().startsWith('<!DOCTYPE')) {
+    return fallbackText;
   }
 
-  return responseText;
+  if (status === 401) {
+    return 'Correo o contrasena incorrectos.';
+  }
+
+  if (status === 404) {
+    return 'La API no esta disponible en esta URL.';
+  }
+
+  if (status === 502 || status === 503 || status === 504) {
+    return 'El servicio no esta disponible en este momento.';
+  }
+
+  return `Request failed with status ${status}`;
 }
 
 function parseFileName(contentDisposition: string | null, fallbackFileName: string) {
@@ -64,8 +74,19 @@ export async function apiFetch<T>(path: string, options: RequestInit = {}, acces
   });
 
   if (!response.ok) {
+    const contentType = response.headers.get('content-type') ?? '';
     const text = await response.text();
-    throw new Error(parseApiErrorMessage(text, response.status));
+    let payload: unknown = null;
+
+    if (contentType.includes('application/json') && text) {
+      try {
+        payload = JSON.parse(text);
+      } catch {
+        payload = null;
+      }
+    }
+
+    throw new Error(normalizeErrorMessage(response.status, payload, text));
   }
 
   return response.json() as Promise<T>;
@@ -80,8 +101,19 @@ export async function downloadApiFile(path: string, accessToken?: string, fallba
   });
 
   if (!response.ok) {
+    const contentType = response.headers.get('content-type') ?? '';
     const text = await response.text();
-    throw new Error(parseApiErrorMessage(text, response.status));
+    let payload: unknown = null;
+
+    if (contentType.includes('application/json') && text) {
+      try {
+        payload = JSON.parse(text);
+      } catch {
+        payload = null;
+      }
+    }
+
+    throw new Error(normalizeErrorMessage(response.status, payload, text));
   }
 
   return {
